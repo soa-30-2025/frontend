@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import App from '../App.vue';
+import App from '../src/views/App.vue';
 
 const routes = [
     { path: '/', name: 'App', component: App },
