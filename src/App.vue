@@ -2,7 +2,7 @@
     <div class="w-full h-screen bg-white flex flex-col">
         <header class="flex items-center justify-between px-6 md:px-12 lg:px-20 py-6 border-b border-gray-100">
             <div class="flex items-center gap-3">
-                <h1 class="text-2xl md:text-3xl font-bold text-gray-900">Biblioteka</h1>
+                <h1 class="text-2xl md:text-3xl font-bold text-gray-900">Application</h1>
             </div>
 
             <div>
@@ -38,20 +38,8 @@
             </div>
         </header>
 
-        <main class="flex-1 flex items-center justify-center px-6 md:px-12 lg:px-20">
-            <section class="w-full max-w-4xl text-center">
-                <h2 class="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">Dobrodosli</h2>
-                <p class="text-gray-600 text-lg md:text-xl">
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. In id neque tempus, lacinia est in,
-                    imperdiet mauris. Nulla facilisi. Sed tempus luctus risus sed porttitor. Orci varius natoque
-                    penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nulla quis turpis ex. Suspendisse
-                    est dui, ultricies sit amet leo ac, tempor fringilla lorem. Curabitur ac turpis non augue feugiat
-                    eleifend. Donec non augue ligula. Vestibulum venenatis ultrices condimentum. Vestibulum nisl lectus,
-                    tempus a malesuada quis, viverra ac nisi. Curabitur condimentum eros sed velit commodo, eget varius
-                    velit fringilla. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris finibus urna et
-                    dapibus ullamcorper. In in dignissim quam.
-                </p>
-            </section>
+        <main class="flex-1 px-6 md:px-12 lg:px-20 flex flex-col gap-10">
+            <router-view/>
         </main>
 
         <AuthModal v-if="showModal" :isVisible="showModal" @close="checkLoggedUser" />
@@ -61,7 +49,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import AuthModal from '../components/AuthModal.vue';
+import AuthModal from './components/AuthModal.vue';
 
 const router = useRouter();
 const showModal = ref(false);

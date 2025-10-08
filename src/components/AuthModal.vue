@@ -13,7 +13,7 @@
 
                 <div v-if="isRegister" class="mb-4 w-full">
                     <label for="name" class="block text-sm font-medium text-black mb-2">Username</label>
-                    <input id="name" type="text" v-model="name" required @input="clearUsernameError"
+                    <input id="name" type="text" v-model="username" required @input="clearUsernameError"
                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400" />
                     <div id="usernameError" style="color: red; display: none;">This username is already taken.</div>
                 </div>
