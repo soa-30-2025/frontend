@@ -73,7 +73,7 @@
 
 <script setup>
 import { ref } from 'vue';
-import { register } from '@/api/auth';
+import { register, login } from '@/api/auth';
 
 const props = defineProps({
     isVisible: {
@@ -119,20 +119,21 @@ const handleSubmit = async () => {
             }
         }
     } else {
-        // const response = await login(email.value, password.value);
-        // if (response.ok) {
-        //     const data = await response.json();
-        //     sessionStorage.setItem('username', data.username);
-        //     sessionStorage.setItem('jwtToken', data.jwtToken);
-        //     sessionStorage.setItem('role', data.role);
-        //     closeModal();
-        // } else {
-        //     const errorMessage = await response.text();
-        //     if (errorMessage === "Wrong credentials")
-        //         alert("Wrong credentials");
-        //     else
-        //         alert(errorMessage);
-        // }
+        const response = await login(email.value, password.value);
+        if (response.ok) {
+            const data = await response.json();
+            console.log("Login response:", data);
+            sessionStorage.setItem('username', data.username);
+            sessionStorage.setItem('jwtToken', data.accessToken);
+            sessionStorage.setItem('role', data.role);
+            closeModal();
+        } else {
+            const errorMessage = await response.text();
+            if (errorMessage === "Wrong credentials")
+                alert("Wrong credentials");
+            else
+                alert(errorMessage);
+        }
     }
 };
 
