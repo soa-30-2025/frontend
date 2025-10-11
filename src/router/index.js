@@ -1,9 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import HomePage from '../views/HomePage.vue';
 import ControlTable from '../views/ControlTable.vue';
+import Blogs from '../views/Blogs.vue';
 
 const routes = [
     { path: '/', name: 'HomePage', component: HomePage },
+    { path: '/blogs', name: 'Blogs', component: Blogs },
     { path: '/control-table', name: 'ControlTable', component: ControlTable, meta: { requiresAdmin: true } },
 ];
 
