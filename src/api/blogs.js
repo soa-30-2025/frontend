@@ -1,0 +1,109 @@
+const API_URL = "http://localhost:8000/api";
+import { getById } from "@/api/stakeholder";
+
+export async function fetchBlogs() {
+  const token = sessionStorage.getItem("jwtToken");
+
+  const res = await fetch(`${API_URL}/blogs`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) throw new Error("Neuspešno učitavanje blogova");
+
+  const data = await res.json();
+  return data.blogs.map((b) => ({
+    id: b.id,
+    title: b.title,
+    description: b.description,
+    created_at: b.created_at,
+  }));
+}
+
+export async function createBlog(newBlog) {
+  const token = sessionStorage.getItem("jwtToken");
+
+  const response = await fetch(`${API_URL}/blog`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      title: newBlog.title,
+      description: newBlog.description,
+    }),
+  });
+
+  if (!response.ok) throw new Error("Neuspešno kreiranje bloga");
+
+  const data = await response.json();
+  return {
+    id: data.blog.id,
+    title: data.blog.title,
+    description: data.blog.description,
+    created_at: new Date().toISOString(),
+  };
+}
+
+export async function createComment(blogId, text) {
+  const token = sessionStorage.getItem("jwtToken");
+
+  const res = await fetch("http://localhost:8000/api/comment", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      blog_id: blogId,
+      text: text,
+    }),
+  });
+
+  if (!res.ok) throw new Error("Neuspešno kreiranje komentara");
+
+  return await res.json();
+}
+
+export async function loadComments(blogId) {
+  try {
+    const token = sessionStorage.getItem("jwtToken");
+
+    const res = await fetch(`${API_URL}/comments/${blogId}`, {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    });
+
+    if (!res.ok) throw new Error("Failed to fetch comments");
+
+    const data = await res.json();
+    const rawComments = data.comments || [];
+
+    const commentsWithUsers = await Promise.all(
+      rawComments.map(async (comment) => {
+        try {
+          const user = await getById(comment.userId);
+          return {
+            ...comment,
+            author_name: user?.user?.username || "Anon",
+          };
+        } catch (err) {
+          console.error("Error loading user for comment:", err);
+          return {
+            ...comment,
+            author_name: "Anon",
+          };
+        }
+      })
+    );
+
+    return commentsWithUsers;
+  } catch (err) {
+    console.error("Failed to load comments:", err);
+    throw err;
+  }
+}
+
