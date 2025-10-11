@@ -30,7 +30,7 @@
             </div>
         </header>
 
-        <main class="flex-1 px-6 md:px-12 lg:px-20 flex flex-col gap-10">
+        <main>
             <router-view/>
         </main>
 
@@ -45,6 +45,7 @@ import AuthModal from './components/AuthModal.vue';
 
 const router = useRouter();
 const role = sessionStorage.getItem('role');
+const username = sessionStorage.getItem('username')
 const showModal = ref(false);
 var logged = ref(sessionStorage.getItem("username") != null);
 
@@ -59,6 +60,7 @@ const checkLoggedUser = () => {
 };
 
 const logout = async () => {
+    sessionStorage.removeItem("id");
     sessionStorage.removeItem("username");
     sessionStorage.removeItem("jwtToken");
     sessionStorage.removeItem("role");
@@ -75,7 +77,7 @@ const profileButtonClick = () => {
   if (role === 'admin') {
     router.push('/control-table')
   } else if (role === 'guide' || role === "tourist") {
-    router.push('/profile')
+    router.push(`/profile/${username}`)
   } else {
     router.push('/')
   }

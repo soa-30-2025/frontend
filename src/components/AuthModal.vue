@@ -122,7 +122,7 @@ const handleSubmit = async () => {
         const response = await login(email.value, password.value);
         if (response.ok) {
             const data = await response.json();
-            console.log("Login response:", data);
+            sessionStorage.setItem('id', data.id);
             sessionStorage.setItem('username', data.username);
             sessionStorage.setItem('jwtToken', data.accessToken);
             sessionStorage.setItem('role', data.role);
@@ -143,7 +143,6 @@ const toggleForm = () => {
     password.value = "";
     confirmPassword.value = "";
     email.value = "";
-    // hide errors if any
     const emailErr = document.getElementById("emailError");
     if (emailErr) emailErr.classList.add("hidden");
     const nameErr = document.getElementById("nameError");
