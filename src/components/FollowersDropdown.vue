@@ -18,14 +18,16 @@
                 <div v-if="loading" class="text-gray-500">Loading…</div>
 
                 <ul v-else-if="list.length > 0" class="space-y-2 max-h-64 overflow-auto">
-                    <li v-for="id in list" :key="id" class="flex items-center gap-3">
-                        <img :src="avatar(id)" class="w-8 h-8 rounded-full bg-gray-100" />
+                    <li v-for="user in list" :key="user.id" class="flex items-center gap-3">
+                        <img :src="avatar(user.id)" class="w-8 h-8 rounded-full bg-gray-100" />
                         <div class="flex-1 text-sm">
-                            <div class="font-medium truncate">{{ id }}</div>
-                            <div class="text-xs text-gray-500">Some extra info</div>
+                            <div class="font-medium truncate">{{ user.username }}</div>
+                            <div class="text-xs text-gray-500">
+                                {{ user.firstName  }}
+                            </div>
                         </div>
                         <div>
-                            <router-link :to="`/profile/${id}`" class="text-sm text-blue-600">View</router-link>
+                            <router-link :to="`/profile/${user.username}`" @click.prevent="closeAndNavigate(user.username)" class="text-sm text-blue-600">View</router-link>
                         </div>
                     </li>
                 </ul>
@@ -39,6 +41,7 @@
 <script setup>
 import { ref, watch, onMounted, computed } from 'vue';
 import { getFollowers, getFollowing } from '@/api/followings';
+import { getById } from '@/api/stakeholder';
 
 const props = defineProps({
     userId: { type: String, required: true },
@@ -67,31 +70,44 @@ async function load(isInitialLoad = false) {
 
     try {
         let res;
-
         if (props.type === 'followers') {
             res = await getFollowers(props.userId, 100, 0);
         } else {
             res = await getFollowing(props.userId, 100, 0);
         }
 
-        let loadedList = [];
-
+        let idList = [];
         if (props.type === 'followers') {
-            loadedList = res.follower_ids || res.followerIds || res || [];
+            idList = res.follower_ids || res.followerIds || res || [];
         } else {
-            loadedList = res.following_ids || res.followingIds || res || [];
+            idList = res.following_ids || res.followingIds || res || [];
+        }
+        if (!Array.isArray(idList)) {
+            idList = [];
         }
 
-        count.value = loadedList.length;
+        count.value = idList.length;
 
-        if (open.value) {
-            list.value = loadedList;
-        } else if (list.value.length > 0 && isInitialLoad) {
+        if (isInitialLoad && !open.value) {
+            list.value = [];
+            return;
+        }
+
+        if (idList.length > 0) {
+            const userPromises = idList.map(id => getById(id));
+            const rawUsers = await Promise.all(userPromises);
+
+            const users = rawUsers
+                .map(result => result && result.user ? result.user : null)
+                .filter(user => user && user.id)
+            
+            list.value = users;
+        } else {
             list.value = [];
         }
 
     } catch (e) {
-        console.error(e);
+        console.error("Error loading user details:", e);
         list.value = [];
         count.value = 0;
     } finally {
@@ -112,6 +128,11 @@ watch(open, (isOpened) => {
         load();
     }
 });
+
+function closeAndNavigate(username){
+    open.value = false;
+    routerKey.push(`/profile/${username}`)
+}
 </script>
 
 <style scoped>

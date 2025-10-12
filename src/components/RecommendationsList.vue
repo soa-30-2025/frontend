@@ -6,14 +6,14 @@
         <div v-else-if="items.length === 0" class="text-gray-500">No recommendations yet.</div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div v-for="rec in items" :key="rec.user_id"
+            <div v-for="rec in items" :key="rec.user.id"
                 class="bg-white border rounded-lg p-4 flex items-start gap-4 shadow-sm">
                 <img :src="getAvatar(rec.user_id)" alt="avatar"
                     class="w-12 h-12 rounded-full object-cover bg-gray-100" />
                 <div class="flex-1">
                     <div class="flex items-center justify-between">
                         <div>
-                            <div class="font-medium text-sm">{{ rec.username || rec.user_id }}</div>
+                            <router-link :to="`/profile/${rec.user.username}`" class="text-sm text-blue-600">{{ rec.user.username }}</router-link>
                             <div class="text-xs text-gray-500">score: {{ rec.score }}</div>
                         </div>
                         <div>
@@ -25,7 +25,7 @@
                             </button>
                         </div>
                     </div>
-                    <div class="mt-2 text-xs text-gray-600">ID: <span class="text-gray-700">{{ rec.user_id }}</span>
+                    <div class="mt-2 text-xs text-gray-600"><span class="text-gray-700">{{ rec.user.firstName }}</span>
                     </div>
                 </div>
             </div>
@@ -36,6 +36,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { recommend, isFollowing, follow, unfollow } from '@/api/followings'
+import { getById } from '@/api/stakeholder';
 
 const limit = 5
 const userId = sessionStorage.getItem("id")
@@ -47,28 +48,43 @@ function getAvatar(userId) {
 }
 
 async function load() {
-    loading.value = true
+    loading.value = true;
+
     try {
-        const data = await recommend(userId, limit)
-        const recs = data.recommendations ?? data
-        //todo importuj stakeholder i dobavi getById za svaku recommendation
-        items.value = await Promise.all(recs.map(async r => {
-            const uid = r.user_id || r.userId || r
-            let following = false
-            try {
-                const res = await isFollowing(sessionUserId(), uid)
-                following = res.following ?? res === true
-            } catch (e) {
-                following = false
-            }
-            return { user_id: uid, score: r.score || r.score || 0, following, loading: false }
-        }))
+        const data = await recommend(userId, limit);
+        const recs = data.recommendations ?? data;
+
+        const itemPromises = recs.map(r => {
+            const uid = r.user_id || r.userId || r;
+            const score = r.score || 0;
+
+            return (async () => {
+                const [userResponse, followingResponse] = await Promise.all([
+                    getById(uid),
+                    sessionUserId() ? isFollowing(sessionUserId(), uid) : Promise.resolve(false)
+                ]);
+
+                const user = userResponse?.user ?? userResponse;
+
+                return {
+                    user: user?.id ? user : null,
+                    score,
+                    following: followingResponse?.following ?? followingResponse === true,
+                    loading: false
+                };
+            })();
+        });
+
+        const resolvedItems = await Promise.all(itemPromises);
+        items.value = resolvedItems.filter(item => item.user !== null);
     } catch (err) {
-        console.error(err)
+        console.error("Error loading recommendations and user details:", err);
+        items.value = [];
     } finally {
-        loading.value = false
+        loading.value = false;
     }
 }
+
 
 function sessionUserId() {
     return sessionStorage.getItem('id') || ''
@@ -80,10 +96,10 @@ async function toggleFollow(rec) {
         const me = sessionUserId()
         if (!me) throw new Error('not authenticated')
         if (rec.following) {
-            await unfollow(me, rec.user_id)
+            await unfollow(me, rec.user.id)
             rec.following = false
         } else {
-            await follow(me, rec.user_id)
+            await follow(me, rec.user.id)
             rec.following = true
         }
     } catch (err) {

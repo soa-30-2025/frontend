@@ -131,8 +131,10 @@
         </div>
 
         <div class="flex items-center gap-4 mt-4" v-if="profile && profile.id">
-            <FollowersDropdown :userId="profile.id" type="followers" title="Followers" :refresh-key="followersRefreshKey"/>
-            <FollowersDropdown :userId="profile.id" type="following" title="Following" :refresh-key="followingRefreshKey"/>
+            <FollowersDropdown :userId="profile.id" type="followers" title="Followers"
+                :refresh-key="followersRefreshKey" />
+            <FollowersDropdown :userId="profile.id" type="following" title="Following"
+                :refresh-key="followingRefreshKey" />
         </div>
 
         <div class="mt-6">
@@ -250,7 +252,7 @@ async function loadProfile(username) {
     error.value = null
     success.value = null
     try {
-        const res = await getByUsername(usernameParam)
+        const res = await getByUsername(username)
         const u = res.user ?? res
         profile.id = u.id || ''
         profile.username = u.username || ''
@@ -270,6 +272,9 @@ async function loadProfile(username) {
 
         updateOwnership()
         await checkFollowing()
+
+        followersRefreshKey.value++
+        followingRefreshKey.value++
     } catch (err) {
         console.error(err)
         error.value = err?.message || 'Failed to load profile'
@@ -325,20 +330,17 @@ async function save() {
     }
 }
 
-onMounted(() => {
-    const username = usernameParam || null
-    if (!username) {
-        error.value = 'No username specified'
-        return
-    }
-    loadProfile(username)
-})
+watch(
+    () => route.params.username,
+    (newUsername, oldUsername) => {
+        if (newUsername && newUsername !== oldUsername) {
+            loadProfile(newUsername);
+        }
+    },
+    { immediate: true }
+);
 
-watch(() => route.params.username, async (nv) => {
-    if (nv) {
-        await loadProfile(nv)
-    }
-})
+
 </script>
 
 <style scoped></style>

@@ -12,14 +12,14 @@ export async function recommend(userId, limit = 6) {
   const url = `${GATEWAY}/api/users/${encodeURIComponent(userId)}/recommendations?limit=${limit}`;
   const res = await fetch(url, { headers: authHeaders() });
   if (!res.ok) throw new Error((await res.json()).message || `HTTP ${res.status}`);
-  return res.json(); // { recommendations: [{user_id, score}, ...] }
+  return res.json();
 }
 
 export async function getFollowers(userId, limit = 20, offset = 0) {
   const url = `${GATEWAY}/api/users/${encodeURIComponent(userId)}/followers?limit=${limit}&offset=${offset}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error((await res.json()).message || `HTTP ${res.status}`);
-  return res.json(); // { follower_ids: [...] } or array depending on backend
+  return res.json();
 }
 
 export async function getFollowing(userId, limit = 20, offset = 0) {
@@ -55,5 +55,5 @@ export async function isFollowing(followerId, followeeId) {
   const url = `${GATEWAY}/api/users/${encodeURIComponent(followerId)}/is-following/${encodeURIComponent(followeeId)}`;
   const res = await fetch(url, { headers: authHeaders() });
   if (!res.ok) throw new Error((await res.json()).message || `HTTP ${res.status}`);
-  return res.json(); // { following: true/false } or similar
+  return res.json();
 }
