@@ -4,7 +4,7 @@ import { getById } from "@/api/stakeholder";
 export async function fetchBlogs() {
   const token = sessionStorage.getItem("jwtToken");
 
-  const res = await fetch(`${API_URL}/blogs`, {
+  const res = await fetch("http://localhost:8000/api/blogs", {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -13,6 +13,12 @@ export async function fetchBlogs() {
   if (!res.ok) throw new Error("Neuspešno učitavanje blogova");
 
   const data = await res.json();
+
+  if (!data || !Array.isArray(data.blogs) || data.blogs.length === 0) {
+    console.warn("Nema dostupnih blogova");
+    return [];
+  }
+
   return data.blogs.map((b) => ({
     id: b.id,
     title: b.title,
@@ -106,4 +112,67 @@ export async function loadComments(blogId) {
     throw err;
   }
 }
+
+export async function getLikedUsers(blogId) {
+  const token = sessionStorage.getItem("jwtToken");
+  const res = await fetch(`${API_URL}/blogs/liked-users?blog_id=${blogId}`, {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) throw new Error("Failed to fetch liked users");
+  return await res.json(); 
+}
+
+export async function likeBlog(blogId) {
+  const token = sessionStorage.getItem("jwtToken");
+  const res = await fetch(`${API_URL}/blog/${blogId}/like`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) throw new Error("Failed to like blog");
+  return await res.json();
+}
+
+export async function unlikeBlog(blogId) {
+  const token = sessionStorage.getItem("jwtToken");
+  const res = await fetch(`${API_URL}/blog/${blogId}/dislike`, {
+    method: "DELETE",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) throw new Error("Failed to unlike blog");
+  return await res.json();
+}
+
+export async function getLikesCount(blogId) {
+  const token = sessionStorage.getItem("jwtToken");
+  const res = await fetch(`${API_URL}/blog/${blogId}/likes`, {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) throw new Error("Failed to fetch likes count");
+  return await res.json(); 
+}
+
+export async function updateComment(commentId, newText) {
+  const token = sessionStorage.getItem("jwtToken");
+
+  const res = await fetch(`${API_URL}/comment/${commentId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify({ id: commentId, text: newText }),
+  });
+
+  if (!res.ok) throw new Error("Neuspešan update komentara");
+  return await res.json();
+}
+
 
