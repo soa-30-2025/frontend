@@ -2,27 +2,42 @@
     <div class="p-6 max-w-3xl mx-auto">
         <div class="flex items-center justify-between mb-6">
             <h1 class="text-2xl font-semibold text-gray-800">{{ profile.username }}</h1>
-            <div v-if="usernameParam === loggedUsername">
-                <button v-if="!editing" @click="startEdit"
-                    class="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm">
-                    Edit
-                </button>
+            <div class="flex items-center gap-3">
+                <div v-if="!isOwner">
+                    <button @click="onToggleFollow" :disabled="followLoading" :class="followBtnClass"
+                        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm">
+                        <svg v-if="followLoading" class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                            </circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                        </svg>
+                        <span v-else>{{ followLabel }}</span>
+                    </button>
+                </div>
 
-                <button v-else @click="cancelEdit"
-                    class="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md text-sm mr-2">
-                    Cancel
-                </button>
+                <div v-if="usernameParam === loggedUsername">
+                    <button v-if="!editing" @click="startEdit"
+                        class="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm">
+                        Edit
+                    </button>
 
-                <button v-if="editing" @click="save" :disabled="saving"
-                    class="inline-flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm">
-                    <svg v-if="saving" class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"
-                        xmlns="http://www.w3.org/2000/svg">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
-                        </circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-                    </svg>
-                    <span v-else>Save</span>
-                </button>
+                    <button v-else @click="cancelEdit"
+                        class="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md text-sm mr-2">
+                        Cancel
+                    </button>
+
+                    <button v-if="editing" @click="save" :disabled="saving"
+                        class="inline-flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm">
+                        <svg v-if="saving" class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                            </circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                        </svg>
+                        <span v-else>Save</span>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -114,13 +129,27 @@
             <div v-if="error" class="mt-4 text-sm text-red-600">{{ error }}</div>
             <div v-if="success" class="mt-4 text-sm text-green-600">{{ success }}</div>
         </div>
+
+        <div class="flex items-center gap-4 mt-4" v-if="profile && profile.id">
+            <FollowersDropdown :userId="profile.id" type="followers" title="Followers"
+                :refresh-key="followersRefreshKey" />
+            <FollowersDropdown :userId="profile.id" type="following" title="Following"
+                :refresh-key="followingRefreshKey" />
+        </div>
+
+        <div class="mt-6">
+            <RecommendationsList />
+        </div>
     </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { getByUsername, update } from '@/api/stakeholder'
+import { isFollowing, follow, unfollow } from '@/api/followings'
+import RecommendationsList from '@/components/RecommendationsList.vue'
+import FollowersDropdown from '@/components/FollowersDropdown.vue'
 
 const route = useRoute()
 const usernameParam = route.params.username || null
@@ -129,7 +158,15 @@ const saving = ref(false)
 const editing = ref(false)
 const error = ref(null)
 const success = ref(null)
-const loggedUsername = sessionStorage.getItem('username');
+
+const loggedUsername = sessionStorage.getItem('username') || ''
+const sessionUserId = sessionStorage.getItem('id') || ''
+const isOwner = ref(false)
+const isFollowingState = ref(false)
+const followLoading = ref(false)
+
+const followersRefreshKey = ref(0)
+const followingRefreshKey = ref(0)
 
 const profile = reactive({
     id: '',
@@ -152,12 +189,70 @@ const form = reactive({
     motto: ''
 })
 
+function updateOwnership() {
+    isOwner.value = sessionUserId !== '' && profile.id === sessionUserId
+}
+
+async function checkFollowing() {
+    if (!sessionUserId || isOwner.value) {
+        isFollowingState.value = false
+        return
+    }
+    try {
+        const res = await isFollowing(sessionUserId, profile.id)
+        isFollowingState.value = (res.following ?? res) === true
+    } catch (e) {
+        console.error('isFollowing check failed', e)
+        isFollowingState.value = false
+    }
+}
+
+async function onToggleFollow() {
+    if (!sessionUserId) {
+        error.value = 'You must be logged in to follow users.'
+        return
+    }
+    followLoading.value = true
+    error.value = null
+    success.value = null
+    try {
+        if (isFollowingState.value) {
+            await unfollow(sessionUserId, profile.id)
+            isFollowingState.value = false
+            success.value = 'Unfollowed'
+        } else {
+            await follow(sessionUserId, profile.id)
+            isFollowingState.value = true
+            success.value = 'Followed'
+        }
+
+        followersRefreshKey.value++
+        followingRefreshKey.value++
+    } catch (e) {
+        console.error('follow/unfollow failed', e)
+        error.value = e?.message || 'Action failed'
+    } finally {
+        followLoading.value = false
+    }
+}
+
+const followLabel = computed(() => {
+    return isFollowingState.value ? 'Following' : 'Follow'
+})
+
+const followBtnClass = computed(() => {
+    if (followLoading.value) return 'bg-gray-300 text-gray-700'
+    return isFollowingState.value
+        ? 'bg-white border text-gray-800 hover:bg-gray-50'
+        : 'bg-blue-600 hover:bg-blue-700 text-white'
+})
+
 async function loadProfile(username) {
     loading.value = true
     error.value = null
     success.value = null
     try {
-        const res = await getByUsername(usernameParam)
+        const res = await getByUsername(username)
         const u = res.user ?? res
         profile.id = u.id || ''
         profile.username = u.username || ''
@@ -174,6 +269,12 @@ async function loadProfile(username) {
         form.profile_image = profile.profile_image
         form.bio = profile.bio
         form.motto = profile.motto
+
+        updateOwnership()
+        await checkFollowing()
+
+        followersRefreshKey.value++
+        followingRefreshKey.value++
     } catch (err) {
         console.error(err)
         error.value = err?.message || 'Failed to load profile'
@@ -229,15 +330,17 @@ async function save() {
     }
 }
 
-onMounted(() => {
-    const username = usernameParam || null
-    if (!username) {
-        error.value = 'No username specified'
-        return
-    }
-    loadProfile(username)
-})
+watch(
+    () => route.params.username,
+    (newUsername, oldUsername) => {
+        if (newUsername && newUsername !== oldUsername) {
+            loadProfile(newUsername);
+        }
+    },
+    { immediate: true }
+);
+
+
 </script>
 
-<style scoped>
-</style>
+<style scoped></style>
