@@ -3,12 +3,14 @@ import HomePage from '../views/HomePage.vue';
 import ControlTable from '../views/ControlTable.vue';
 import Blogs from '../views/Blogs.vue';
 import UserProfile from '../views/UserProfile.vue';
+import Tours from '../views/Tours.vue';
 
 const routes = [
     { path: '/', name: 'HomePage', component: HomePage },
     { path: '/blogs', name: 'Blogs', component: Blogs },
     { path: '/control-table', name: 'ControlTable', component: ControlTable, meta: { requiresAdmin: true } },
     { path: '/profile/:username', name: 'UserProfile', component: UserProfile },
+    { path: '/tours', name: 'Tours', component: Tours },
 ];
 
 const router = createRouter({
