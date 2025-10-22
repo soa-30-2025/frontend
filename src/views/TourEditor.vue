@@ -74,7 +74,6 @@
             <!-- keypoint list -->
             <div class="mt-4">
                 <h3 class="text-sm font-medium mb-2">Keypoints (drag to reorder in map)</h3>
-                <!-- import draggable as component -->
                 <draggable v-model="keypoints" item-key="id" @end="onReorder" handle=".drag-handle">
                     <template #item="{ element, index }">
                         <li :key="element.id" class="flex items-start gap-3">
@@ -88,7 +87,7 @@
                                     element.lon.toFixed(5) }}</div>
                             </div>
                             <div class="flex flex-col gap-2">
-                                <button @click="editKeypoint(element)" class="text-sm text-blue-600">Edit</button>
+                                <button @click="openEditModal(element)" class="text-sm text-blue-600">Edit</button>
                                 <button @click="deleteKeypoint(element)" class="text-sm text-red-600">Delete</button>
                             </div>
                         </li>
@@ -129,6 +128,33 @@
             </div>
         </teleport>
 
+        <!-- edit keypoint modal -->
+        <div v-if="showEditModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[10050]">
+            <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-lg z-[10051]">
+                <h3 class="text-xl font-semibold mb-4">Edit Keypoint</h3>
+
+                <div class="mb-3">
+                    <label class="text-sm text-gray-600">Name</label>
+                    <input v-model="editForm.name" type="text" class="w-full border rounded px-3 py-1" />
+                </div>
+
+                <div class="mb-4">
+                    <label class="text-sm text-gray-600">Description</label>
+                    <textarea v-model="editForm.description" rows="3"
+                        class="w-full border rounded px-3 py-1"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-2">
+                    <button @click="showEditModal = false" class="px-3 py-1 rounded bg-gray-200">
+                        Cancel
+                    </button>
+                    <button @click="saveKeypointEdit" class="px-3 py-1 rounded bg-blue-600 text-white">
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+
     </div>
 </template>
 
@@ -139,7 +165,6 @@ import 'leaflet/dist/leaflet.css'
 import Draggable from 'vuedraggable'
 import { createTour, updateTour, getTour, addKeypointBase64, updateKeypointAPI, deleteKeypointAPI, publishTourAPI, archiveTourAPI, unarchiveTourAPI, reorderKeypoints } from '@/api/tours'
 
-// simple haversine
 function haversineKm(a, b) {
     const toRad = d => d * Math.PI / 180
     const R = 6371
@@ -173,6 +198,10 @@ const showKPModal = ref(false)
 const kpForm = ref({ name: '', description: '', imageFile: null, imagePreview: null })
 const publishing = ref(false)
 
+const showEditModal = ref(false)
+const editingKeypoint = ref(null)
+const editForm = ref({ name: '', description: '' })
+
 const totalKm = computed(() => {
     let s = 0
     for (let i = 1; i < keypoints.value.length; i++) {
@@ -182,7 +211,6 @@ const totalKm = computed(() => {
 })
 
 onMounted(async () => {
-    // init map
     map = L.map(mapContainer.value).setView([44.7866, 20.4489], 13)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map)
     markersLayer = L.layerGroup().addTo(map)
@@ -209,7 +237,7 @@ function renderMarkersAndLine() {
             const p = e.target.getLatLng()
             kp.lat = p.lat; kp.lon = p.lng
             updatePolyline()
-            // persist change
+
             if (kp.id && props.tourId) {
                 await updateKeypointAPI(kp.id, { lat: kp.lat, lon: kp.lon })
                 await recalcAndPersistLength()
@@ -231,9 +259,13 @@ function updatePolyline() {
 
 async function recalcAndPersistLength() {
     const len = totalKm.value
-    // update tour length on backend if tour saved
+    const updatedTour = {
+        ...tour.value,
+        lengthKm: len
+    }
+    
     if (tour.value.id) {
-        await updateTour(tour.value.id, { length_km: len })
+        await updateTour(tour.value.id, updatedTour)
     }
 }
 
@@ -245,7 +277,6 @@ async function confirmAddKeypoint() {
     const lat = selectedLatLng.value.lat
     const lon = selectedLatLng.value.lng
 
-    // ensure tour exists: create draft first if needed
     if (!tour.value.id) {
         await saveDraft()
         if (!tour.value.id) {
@@ -254,24 +285,21 @@ async function confirmAddKeypoint() {
         }
     }
 
-    // prepare data
     const payload = {
         name: kpForm.value.name,
         description: kpForm.value.description,
         lat,
         lon,
-        order: keypoints.value.length, // append to end
+        order: keypoints.value.length,
         file: kpForm.value.imageFile ?? null
     }
 
     try {
         const created = await addKeypointBase64(tour.value.id, payload)
-        // add returned keypoint to local state. backend should return full kp object (id, lat, lon, image_url, order, ...)
         keypoints.value.push(created.keypoint)
         renderMarkersAndLine()
         showKPModal.value = false
 
-        // recalc length & persist (backend may already update length and return it; keep both safe)
         if (keypoints.value.length > 1) {
             await recalcAndPersistLength()
         }
@@ -290,7 +318,6 @@ function cancelKP() {
 async function deleteKeypoint(kp) {
     if (kp.id && tour.value.id) {
         await deleteKeypointAPI(kp.id)
-        // after delete, refresh list from server (or remove locally)
         keypoints.value = keypoints.value.filter(x => x.id !== kp.id)
         await recalcAndPersistLength()
         renderMarkersAndLine()
@@ -310,7 +337,6 @@ function onFileChange(e) {
 }
 
 async function saveDraft() {
-    // build body from form
     const tags = (form.value.tagsString || '').split(',').map(s => s.trim()).filter(Boolean)
     const body = {
         name: form.value.name,
@@ -318,7 +344,6 @@ async function saveDraft() {
         difficulty: form.value.difficulty,
         tags
     }
-    // travel_times
     body.travel_times = {}
     if (form.value.travel_times.walking) body.travel_times.walking = Number(form.value.travel_times.walking)
     if (form.value.travel_times.bicycle) body.travel_times.bicycle = Number(form.value.travel_times.bicycle)
@@ -332,7 +357,6 @@ async function saveDraft() {
         form.value.name = tour.value.name
     } else {
         await updateTour(tour.value.id, body)
-        // optionally reload tour
     }
 }
 
@@ -355,7 +379,6 @@ async function loadExistingTour(id) {
 async function tryPublish() {
     publishing.value = true
     try {
-        // validate front-end as well
         const tags = (form.value.tagsString || '').split(',').map(s => s.trim()).filter(Boolean)
         if (!form.value.name || !form.value.description || !form.value.difficulty || tags.length === 0) {
             alert('Please fill name/description/difficulty/tags before publishing.')
@@ -374,10 +397,8 @@ async function tryPublish() {
             return
         }
 
-        // ensure draft saved
         await saveDraft()
 
-        // call publish endpoint
         await publishTourAPI(tour.value.id)
         tour.value.status = 'published'
         tour.value.published_at = new Date().toISOString()
@@ -404,43 +425,67 @@ async function unarchive() {
 }
 
 async function onReorder(evt) {
-    // evt contains information, but keypoints.value is already reordered
     if (!tour.value.id) {
-        // tour not saved yet — nothing to persist
         renderMarkersAndLine()
         return
     }
 
     const orderedIds = keypoints.value.map(k => k.id).filter(Boolean)
-    // sanity check: ensure all ids are real (no tmp id)
     const hasTmp = orderedIds.some(id => id && id.startsWith && id.startsWith('tmp-'))
     if (hasTmp) {
-        // if temporary keypoints exist, create them first before reorder
-        // simplest: reload tour from server (rollback local tmp items)
         await loadExistingTour(tour.value.id)
         alert('Please save new points first before reordering.')
         return
     }
 
-    const prev = keypoints.value.map(k => ({ ...k })) // deep copy for rollback
+    const prev = keypoints.value.map(k => ({ ...k }))
 
     try {
         reordering.value = true
-        // call API to persist new order
         await reorderKeypoints(tour.value.id, orderedIds)
-        // success — update markers and polyline
         renderMarkersAndLine()
-        // optional: request server to recalc length and update local tour data
         await recalcAndPersistLength()
     } catch (e) {
         console.error('Reorder failed', e)
-        // rollback to prev order
         keypoints.value = prev
         renderMarkersAndLine()
         alert('Failed to reorder keypoints, reloading data.')
         await loadExistingTour(tour.value.id)
     } finally {
         reordering.value = false
+    }
+}
+
+function openEditModal(kp) {
+    editingKeypoint.value = kp
+    editForm.value = {
+        name: kp.name ?? '',
+        description: kp.description ?? ''
+    }
+    showEditModal.value = true
+}
+
+async function saveKeypointEdit() {
+    try {
+        const payload = {
+            keypoint_id: editingKeypoint.value.id,
+            name: editForm.value.name,
+            description: editForm.value.description,
+        }
+
+        const res = await updateKeypointAPI(editingKeypoint.value.id, payload)
+        const updated = res.keypoint ?? res
+
+        const idx = keypoints.value.findIndex(k => k.id === updated.id)
+        if (idx !== -1) {
+            keypoints.value[idx].name = updated.name
+            keypoints.value[idx].description = updated.description
+        }
+
+        showEditModal.value = false
+    } catch (err) {
+        console.error(err)
+        alert("Error updating keypoint: " + err.message)
     }
 }
 

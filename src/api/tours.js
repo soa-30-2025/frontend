@@ -177,4 +177,3 @@ export async function reorderKeypoints(tourId, orderedIds) {
   });
   return res.data;
 }
-
