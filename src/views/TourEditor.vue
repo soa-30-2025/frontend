@@ -3,18 +3,50 @@
         <div class="flex items-center justify-between mb-4">
             <h1 class="text-2xl font-semibold">{{ isEdit ? 'Edit Tour' : 'Create Tour' }}</h1>
             <div class="flex gap-2">
-                <button @click="saveDraft" class="px-3 py-1 rounded bg-gray-200">Save draft</button>
-                <button @click="tryPublish" :disabled="publishing" class="px-3 py-1 rounded bg-green-600 text-white">
-                    {{ publishing ? 'Publishing...' : (tour.status === 'published' ? 'Published' : 'Publish') }}
-                </button>
-                <button v-if="tour.status === 'published'" @click="archive"
-                    class="px-3 py-1 rounded bg-yellow-500 text-white">Archive</button>
-                <button v-if="tour.status === 'archived'" @click="unarchive"
-                    class="px-3 py-1 rounded bg-blue-600 text-white">Unarchive</button>
+                <template v-if="tour.status === 'draft'">
+                    <button @click="saveDraft" class="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300">
+                        Save draft
+                    </button>
+                    <button @click="tryPublish" :disabled="publishing"
+                        class="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700">
+                        {{ publishing ? 'Publishing...' : 'Publish' }}
+                    </button>
+                </template>
+
+                <template v-else-if="tour.status === 'published'">
+                    <button @click="updateTourDetails"
+                        class="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700">
+                        Save
+                    </button>
+                    <button @click="archive" class="px-3 py-1 rounded bg-yellow-500 text-white hover:bg-yellow-600">
+                        Archive
+                    </button>
+                </template>
+
+                <template v-else-if="tour.status === 'archived'">
+                    <button @click="updateTourDetails"
+                        class="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700">
+                        Save
+                    </button>
+                    <button @click="unarchive" class="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700">
+                        Unarchive
+                    </button>
+                </template>
             </div>
+
         </div>
 
         <div class="bg-white shadow rounded p-4 mb-6">
+            <div class="flex items-center justify-end mb-4">
+                <h2 class="text-xl mr-3 font-semibold">Status</h2>
+                <span class="px-3 py-1 text-sm font-medium rounded-full" :class="{
+                    'bg-gray-200 text-gray-800': tour.status === 'draft',
+                    'bg-green-100 text-green-800': tour.status === 'published',
+                    'bg-yellow-100 text-yellow-800': tour.status === 'archived',
+                }">
+                    {{ tour.status }}
+                </span>
+            </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-xs text-gray-600">Name</label>
@@ -185,7 +217,7 @@ const mapContainer = ref(null)
 let map = null, markersLayer = null, polyline = null
 
 const tour = ref({
-    id: null, author_id: null, name: '', description: '', difficulty: '', tags: [], price_num: 0, status: 'draft', travel_times: {}
+    id: null, author_id: null, name: '', description: '', difficulty: '', tags: [], price_num: 0, status: 'draft', travelTimes: {}
 })
 const form = ref({
     name: '', description: '', difficulty: '', tagsString: '', travel_times: { walking: null, bicycle: null, car: null }
@@ -263,7 +295,7 @@ async function recalcAndPersistLength() {
         ...tour.value,
         lengthKm: len
     }
-    
+
     if (tour.value.id) {
         await updateTour(tour.value.id, updatedTour)
     }
@@ -349,10 +381,11 @@ async function saveDraft() {
     if (form.value.travel_times.bicycle) body.travel_times.bicycle = Number(form.value.travel_times.bicycle)
     if (form.value.travel_times.car) body.travel_times.car = Number(form.value.travel_times.car)
 
+    body.status = 'draft'
+
     if (!tour.value.id) {
         const res = await createTour(body)
         tour.value = res.tour ?? res
-        // set form back from tour to ensure sync
         form.value.tagsString = (tour.value.tags || []).join(', ')
         form.value.name = tour.value.name
     } else {
@@ -399,7 +432,12 @@ async function tryPublish() {
 
         await saveDraft()
 
-        await publishTourAPI(tour.value.id)
+        const updatedTour = {
+            ...tour.value,
+            status: 'published'
+        }
+
+        await updateTour(tour.value.id, updatedTour)
         tour.value.status = 'published'
         tour.value.published_at = new Date().toISOString()
         alert('Published!')
@@ -413,13 +451,21 @@ async function tryPublish() {
 
 async function archive() {
     if (!confirm('Archive this tour?')) return
-    await archiveTourAPI(tour.value.id)
+    const updatedTour = {
+        ...tour.value,
+        status: 'archived'
+    }
+    await updateTour(tour.value.id, updatedTour)
     tour.value.status = 'archived'
     tour.value.archived_at = new Date().toISOString()
 }
 
 async function unarchive() {
-    await unarchiveTourAPI(tour.value.id)
+    const updatedTour = {
+        ...tour.value,
+        status: 'published'
+    }
+    await updateTour(tour.value.id, updatedTour)
     tour.value.status = 'published'
     tour.value.archived_at = null
 }
@@ -489,6 +535,25 @@ async function saveKeypointEdit() {
     }
 }
 
+async function updateTourDetails() {
+    tour.value.name = form.value.name
+    tour.value.description = form.value.description
+    tour.value.difficulty = form.value.difficulty
+    tour.value.tags = (form.value.tagsString || '').split(',').map(s => s.trim()).filter(Boolean)
+
+    tour.value.travelTimes = {}
+    if (form.value.travel_times.walking) tour.value.travelTimes.walking = Number(form.value.travel_times.walking)
+    if (form.value.travel_times.bicycle) tour.value.travelTimes.bicycle = Number(form.value.travel_times.bicycle)
+    if (form.value.travel_times.car) tour.value.travelTimes.car = Number(form.value.travel_times.car)
+
+    try {
+        await updateTour(tour.value.id, tour.value)
+        alert('Tour updated successfully!')
+    } catch (err) {
+        console.error('Failed to update tour', err)
+        alert('Failed to update tour: ' + (err.message || err))
+    }
+}
 </script>
 
 <style scoped></style>
