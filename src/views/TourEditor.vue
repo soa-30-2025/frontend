@@ -1,0 +1,559 @@
+<template>
+    <div class="p-6 max-w-5xl mx-auto">
+        <div class="flex items-center justify-between mb-4">
+            <h1 class="text-2xl font-semibold">{{ isEdit ? 'Edit Tour' : 'Create Tour' }}</h1>
+            <div class="flex gap-2">
+                <template v-if="tour.status === 'draft'">
+                    <button @click="saveDraft" class="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300">
+                        Save draft
+                    </button>
+                    <button @click="tryPublish" :disabled="publishing"
+                        class="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700">
+                        {{ publishing ? 'Publishing...' : 'Publish' }}
+                    </button>
+                </template>
+
+                <template v-else-if="tour.status === 'published'">
+                    <button @click="updateTourDetails"
+                        class="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700">
+                        Save
+                    </button>
+                    <button @click="archive" class="px-3 py-1 rounded bg-yellow-500 text-white hover:bg-yellow-600">
+                        Archive
+                    </button>
+                </template>
+
+                <template v-else-if="tour.status === 'archived'">
+                    <button @click="updateTourDetails"
+                        class="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700">
+                        Save
+                    </button>
+                    <button @click="unarchive" class="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700">
+                        Unarchive
+                    </button>
+                </template>
+            </div>
+
+        </div>
+
+        <div class="bg-white shadow rounded p-4 mb-6">
+            <div class="flex items-center justify-end mb-4">
+                <h2 class="text-xl mr-3 font-semibold">Status</h2>
+                <span class="px-3 py-1 text-sm font-medium rounded-full" :class="{
+                    'bg-gray-200 text-gray-800': tour.status === 'draft',
+                    'bg-green-100 text-green-800': tour.status === 'published',
+                    'bg-yellow-100 text-yellow-800': tour.status === 'archived',
+                }">
+                    {{ tour.status }}
+                </span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs text-gray-600">Name</label>
+                    <input v-model="form.name" class="w-full border px-2 py-1 rounded" />
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600">Difficulty</label>
+                    <select v-model="form.difficulty" class="w-full border px-2 py-1 rounded">
+                        <option value="">Select</option>
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
+
+                <div class="md:col-span-2">
+                    <label class="block text-xs text-gray-600">Description</label>
+                    <textarea v-model="form.description" class="w-full border px-2 py-1 rounded" rows="4"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs text-gray-600">Tags (comma separated)</label>
+                    <input v-model="form.tagsString" class="w-full border px-2 py-1 rounded"
+                        placeholder="walking, city" />
+                </div>
+
+                <div>
+                    <label class="block text-xs text-gray-600">Travel times (minutes)</label>
+                    <div class="flex gap-2">
+                        <input v-model.number="form.travel_times.walking" type="number" placeholder="walking"
+                            class="border px-2 py-1 rounded w-1/3" />
+                        <input v-model.number="form.travel_times.bicycle" type="number" placeholder="bicycle"
+                            class="border px-2 py-1 rounded w-1/3" />
+                        <input v-model.number="form.travel_times.car" type="number" placeholder="car"
+                            class="border px-2 py-1 rounded w-1/3" />
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1">At least one travel time must be set to publish</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map editor -->
+        <div class="bg-white shadow rounded p-4">
+            <div class="mb-2 flex items-center justify-between">
+                <div>
+                    <strong>Map editor</strong>
+                    <div class="text-xs text-gray-500">Click map to add a keypoint. Drag marker to reposition. Right
+                        click marker to delete.</div>
+                </div>
+                <div class="text-sm">
+                    Points: {{ keypoints.length }} • Length: {{ totalKm.toFixed(2) }} km
+                </div>
+            </div>
+
+            <div ref="mapContainer" class="w-full h-96 rounded"></div>
+
+            <!-- keypoint list -->
+            <div class="mt-4">
+                <h3 class="text-sm font-medium mb-2">Keypoints (drag to reorder in map)</h3>
+                <draggable v-model="keypoints" item-key="id" @end="onReorder" handle=".drag-handle">
+                    <template #item="{ element, index }">
+                        <li :key="element.id" class="flex items-start gap-3">
+                            <div class="drag-handle cursor-move text-gray-500">☰</div>
+                            <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs">{{
+                                index + 1 }}</div>
+                            <div class="flex-1">
+                                <div class="font-medium">{{ element.name || 'Point ' + (index + 1) }}</div>
+                                <div class="text-xs text-gray-500">{{ element.description }}</div>
+                                <div class="text-xs text-gray-400">lat: {{ element.lat.toFixed(5) }}, lon: {{
+                                    element.lon.toFixed(5) }}</div>
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <button @click="openEditModal(element)" class="text-sm text-blue-600">Edit</button>
+                                <button @click="deleteKeypoint(element)" class="text-sm text-red-600">Delete</button>
+                            </div>
+                        </li>
+                    </template>
+
+                </draggable>
+            </div>
+        </div>
+
+        <!-- keypoint modal -->
+        <teleport to="body">
+            <div v-if="showKPModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-1050">
+                <div class="bg-white p-4 rounded w-full max-w-lg z-1051">
+                    <h3 class="font-semibold mb-2">Keypoint details</h3>
+                    <form @submit.prevent="confirmAddKeypoint">
+                        <div class="mb-2">
+                            <label class="text-xs">Name</label>
+                            <input v-model="kpForm.name" class="w-full border px-2 py-1 rounded" required />
+                        </div>
+                        <div class="mb-2">
+                            <label class="text-xs">Description</label>
+                            <textarea v-model="kpForm.description" class="w-full border px-2 py-1 rounded"></textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="text-xs">Image</label>
+                            <input type="file" @change="onFileChange" accept="image/*" />
+                            <div v-if="kpForm.imagePreview" class="mt-2">
+                                <img :src="kpForm.imagePreview" class="w-32 h-20 object-cover rounded" />
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-2 mt-3">
+                            <button type="button" @click="cancelKP"
+                                class="px-3 py-1 rounded bg-gray-200">Cancel</button>
+                            <button type="submit" class="px-3 py-1 rounded bg-green-600 text-white">Add</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </teleport>
+
+        <!-- edit keypoint modal -->
+        <div v-if="showEditModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[10050]">
+            <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-lg z-[10051]">
+                <h3 class="text-xl font-semibold mb-4">Edit Keypoint</h3>
+
+                <div class="mb-3">
+                    <label class="text-sm text-gray-600">Name</label>
+                    <input v-model="editForm.name" type="text" class="w-full border rounded px-3 py-1" />
+                </div>
+
+                <div class="mb-4">
+                    <label class="text-sm text-gray-600">Description</label>
+                    <textarea v-model="editForm.description" rows="3"
+                        class="w-full border rounded px-3 py-1"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-2">
+                    <button @click="showEditModal = false" class="px-3 py-1 rounded bg-gray-200">
+                        Cancel
+                    </button>
+                    <button @click="saveKeypointEdit" class="px-3 py-1 rounded bg-blue-600 text-white">
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</template>
+
+<script setup>
+import { ref, onMounted, computed } from 'vue'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import Draggable from 'vuedraggable'
+import { createTour, updateTour, getTour, addKeypointBase64, updateKeypointAPI, deleteKeypointAPI, publishTourAPI, archiveTourAPI, unarchiveTourAPI, reorderKeypoints } from '@/api/tours'
+
+function haversineKm(a, b) {
+    const toRad = d => d * Math.PI / 180
+    const R = 6371
+    const dLat = toRad(b.lat - a.lat)
+    const dLon = toRad(b.lon - a.lon)
+    const lat1 = toRad(a.lat), lat2 = toRad(b.lat)
+    const aa = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2
+    const c = 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa))
+    return R * c
+}
+
+const props = defineProps({
+    tourId: { type: String, required: false }
+})
+const isEdit = !!props.tourId
+
+const mapContainer = ref(null)
+let map = null, markersLayer = null, polyline = null
+
+const tour = ref({
+    id: null, author_id: null, name: '', description: '', difficulty: '', tags: [], price_num: 0, status: 'draft', travelTimes: {}
+})
+const form = ref({
+    name: '', description: '', difficulty: '', tagsString: '', travel_times: { walking: null, bicycle: null, car: null }
+})
+
+const keypoints = ref([])
+const reordering = ref(false)
+const selectedLatLng = ref(null)
+const showKPModal = ref(false)
+const kpForm = ref({ name: '', description: '', imageFile: null, imagePreview: null })
+const publishing = ref(false)
+
+const showEditModal = ref(false)
+const editingKeypoint = ref(null)
+const editForm = ref({ name: '', description: '' })
+
+const totalKm = computed(() => {
+    let s = 0
+    for (let i = 1; i < keypoints.value.length; i++) {
+        s += haversineKm({ lat: keypoints.value[i - 1].lat, lon: keypoints.value[i - 1].lon }, { lat: keypoints.value[i].lat, lon: keypoints.value[i].lon })
+    }
+    return s
+})
+
+onMounted(async () => {
+    map = L.map(mapContainer.value).setView([44.7866, 20.4489], 13)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map)
+    markersLayer = L.layerGroup().addTo(map)
+    polyline = L.polyline([], { color: 'blue', weight: 4 }).addTo(map)
+
+    map.on('click', (ev) => {
+        selectedLatLng.value = ev.latlng
+        kpForm.value = { name: '', description: '', imageFile: null, imagePreview: null }
+        showKPModal.value = true
+    })
+
+    if (isEdit) {
+        await loadExistingTour(props.tourId)
+    }
+})
+
+function renderMarkersAndLine() {
+    markersLayer.clearLayers()
+    const latlngs = []
+    keypoints.value.forEach((kp, idx) => {
+        const marker = L.marker([kp.lat, kp.lon], { draggable: true }).addTo(markersLayer)
+        marker.bindPopup(`<strong>${kp.name || 'Point ' + (idx + 1)}</strong><div class="text-xs">${kp.description || ''}</div>`)
+        marker.on('dragend', async (e) => {
+            const p = e.target.getLatLng()
+            kp.lat = p.lat; kp.lon = p.lng
+            updatePolyline()
+
+            if (kp.id && props.tourId) {
+                await updateKeypointAPI(kp.id, { lat: kp.lat, lon: kp.lon })
+                await recalcAndPersistLength()
+            }
+        })
+        marker.on('contextmenu', async () => {
+            if (!confirm('Delete this point?')) return
+            await deleteKeypoint(kp)
+        })
+        latlngs.push([kp.lat, kp.lon])
+    })
+    polyline.setLatLngs(latlngs)
+}
+
+function updatePolyline() {
+    const latlngs = keypoints.value.map(k => [k.lat, k.lon])
+    polyline.setLatLngs(latlngs)
+}
+
+async function recalcAndPersistLength() {
+    const len = totalKm.value
+    const updatedTour = {
+        ...tour.value,
+        lengthKm: len
+    }
+
+    if (tour.value.id) {
+        await updateTour(tour.value.id, updatedTour)
+    }
+}
+
+async function confirmAddKeypoint() {
+    if (!selectedLatLng.value) {
+        alert('No location selected')
+        return
+    }
+    const lat = selectedLatLng.value.lat
+    const lon = selectedLatLng.value.lng
+
+    if (!tour.value.id) {
+        await saveDraft()
+        if (!tour.value.id) {
+            alert('Could not create tour draft')
+            return
+        }
+    }
+
+    const payload = {
+        name: kpForm.value.name,
+        description: kpForm.value.description,
+        lat,
+        lon,
+        order: keypoints.value.length,
+        file: kpForm.value.imageFile ?? null
+    }
+
+    try {
+        const created = await addKeypointBase64(tour.value.id, payload)
+        keypoints.value.push(created.keypoint)
+        renderMarkersAndLine()
+        showKPModal.value = false
+
+        if (keypoints.value.length > 1) {
+            await recalcAndPersistLength()
+        }
+    } catch (e) {
+        console.error('add keypoint failed', e)
+        alert('Failed to add keypoint: ' + (e.message || e))
+    }
+}
+
+function cancelKP() {
+    showKPModal.value = false
+    selectedLatLng.value = null
+    kpForm.value = { name: '', description: '', imageFile: null, imagePreview: null }
+}
+
+async function deleteKeypoint(kp) {
+    if (kp.id && tour.value.id) {
+        await deleteKeypointAPI(kp.id)
+        keypoints.value = keypoints.value.filter(x => x.id !== kp.id)
+        await recalcAndPersistLength()
+        renderMarkersAndLine()
+    } else {
+        keypoints.value = keypoints.value.filter(x => x !== kp)
+        renderMarkersAndLine()
+    }
+}
+
+function onFileChange(e) {
+    const f = e.target.files[0]
+    if (!f) return
+    kpForm.value.imageFile = f
+    const reader = new FileReader()
+    reader.onload = (ev) => kpForm.value.imagePreview = ev.target.result
+    reader.readAsDataURL(f)
+}
+
+async function saveDraft() {
+    const tags = (form.value.tagsString || '').split(',').map(s => s.trim()).filter(Boolean)
+    const body = {
+        name: form.value.name,
+        description: form.value.description,
+        difficulty: form.value.difficulty,
+        tags
+    }
+    body.travel_times = {}
+    if (form.value.travel_times.walking) body.travel_times.walking = Number(form.value.travel_times.walking)
+    if (form.value.travel_times.bicycle) body.travel_times.bicycle = Number(form.value.travel_times.bicycle)
+    if (form.value.travel_times.car) body.travel_times.car = Number(form.value.travel_times.car)
+
+    body.status = 'draft'
+
+    if (!tour.value.id) {
+        const res = await createTour(body)
+        tour.value = res.tour ?? res
+        form.value.tagsString = (tour.value.tags || []).join(', ')
+        form.value.name = tour.value.name
+    } else {
+        await updateTour(tour.value.id, body)
+    }
+}
+
+async function loadExistingTour(id) {
+    const res = await getTour(id)
+    const t = res.tour ?? res
+    tour.value = t
+    form.value.name = t.name
+    form.value.description = t.description
+    form.value.difficulty = t.difficulty
+    form.value.tagsString = (t.tags || []).join(', ')
+    form.value.travel_times = t.travelTimes || {}
+    keypoints.value = (res.keypoints || []).map(k => ({ id: k.id, lat: k.lat, lon: k.lon, name: k.name, description: k.description, image_url: k.image_url, order: k.order }))
+    renderMarkersAndLine()
+    if (keypoints.value.length > 0) {
+        map.fitBounds(keypoints.value.map(k => [k.lat, k.lon]))
+    }
+}
+
+async function tryPublish() {
+    publishing.value = true
+    try {
+        const tags = (form.value.tagsString || '').split(',').map(s => s.trim()).filter(Boolean)
+        if (!form.value.name || !form.value.description || !form.value.difficulty || tags.length === 0) {
+            alert('Please fill name/description/difficulty/tags before publishing.')
+            publishing.value = false
+            return
+        }
+        if (keypoints.value.length < 2) {
+            alert('At least two keypoints are required to publish.')
+            publishing.value = false
+            return
+        }
+        const tt = form.value.travel_times || {}
+        if (!tt.walking && !tt.bicycle && !tt.car) {
+            alert('Define at least one travel time (walking/bicycle/car).')
+            publishing.value = false
+            return
+        }
+
+        await saveDraft()
+
+        const updatedTour = {
+            ...tour.value,
+            status: 'published'
+        }
+
+        await updateTour(tour.value.id, updatedTour)
+        tour.value.status = 'published'
+        tour.value.published_at = new Date().toISOString()
+        alert('Published!')
+    } catch (e) {
+        console.error('publish failed', e)
+        alert('Publish failed: ' + (e.message || 'unknown'))
+    } finally {
+        publishing.value = false
+    }
+}
+
+async function archive() {
+    if (!confirm('Archive this tour?')) return
+    const updatedTour = {
+        ...tour.value,
+        status: 'archived'
+    }
+    await updateTour(tour.value.id, updatedTour)
+    tour.value.status = 'archived'
+    tour.value.archived_at = new Date().toISOString()
+}
+
+async function unarchive() {
+    const updatedTour = {
+        ...tour.value,
+        status: 'published'
+    }
+    await updateTour(tour.value.id, updatedTour)
+    tour.value.status = 'published'
+    tour.value.archived_at = null
+}
+
+async function onReorder(evt) {
+    if (!tour.value.id) {
+        renderMarkersAndLine()
+        return
+    }
+
+    const orderedIds = keypoints.value.map(k => k.id).filter(Boolean)
+    const hasTmp = orderedIds.some(id => id && id.startsWith && id.startsWith('tmp-'))
+    if (hasTmp) {
+        await loadExistingTour(tour.value.id)
+        alert('Please save new points first before reordering.')
+        return
+    }
+
+    const prev = keypoints.value.map(k => ({ ...k }))
+
+    try {
+        reordering.value = true
+        await reorderKeypoints(tour.value.id, orderedIds)
+        renderMarkersAndLine()
+        await recalcAndPersistLength()
+    } catch (e) {
+        console.error('Reorder failed', e)
+        keypoints.value = prev
+        renderMarkersAndLine()
+        alert('Failed to reorder keypoints, reloading data.')
+        await loadExistingTour(tour.value.id)
+    } finally {
+        reordering.value = false
+    }
+}
+
+function openEditModal(kp) {
+    editingKeypoint.value = kp
+    editForm.value = {
+        name: kp.name ?? '',
+        description: kp.description ?? ''
+    }
+    showEditModal.value = true
+}
+
+async function saveKeypointEdit() {
+    try {
+        const payload = {
+            keypoint_id: editingKeypoint.value.id,
+            name: editForm.value.name,
+            description: editForm.value.description,
+        }
+
+        const res = await updateKeypointAPI(editingKeypoint.value.id, payload)
+        const updated = res.keypoint ?? res
+
+        const idx = keypoints.value.findIndex(k => k.id === updated.id)
+        if (idx !== -1) {
+            keypoints.value[idx].name = updated.name
+            keypoints.value[idx].description = updated.description
+        }
+
+        showEditModal.value = false
+    } catch (err) {
+        console.error(err)
+        alert("Error updating keypoint: " + err.message)
+    }
+}
+
+async function updateTourDetails() {
+    tour.value.name = form.value.name
+    tour.value.description = form.value.description
+    tour.value.difficulty = form.value.difficulty
+    tour.value.tags = (form.value.tagsString || '').split(',').map(s => s.trim()).filter(Boolean)
+
+    tour.value.travelTimes = {}
+    if (form.value.travel_times.walking) tour.value.travelTimes.walking = Number(form.value.travel_times.walking)
+    if (form.value.travel_times.bicycle) tour.value.travelTimes.bicycle = Number(form.value.travel_times.bicycle)
+    if (form.value.travel_times.car) tour.value.travelTimes.car = Number(form.value.travel_times.car)
+
+    try {
+        await updateTour(tour.value.id, tour.value)
+        alert('Tour updated successfully!')
+    } catch (err) {
+        console.error('Failed to update tour', err)
+        alert('Failed to update tour: ' + (err.message || err))
+    }
+}
+</script>
+
+<style scoped></style>

@@ -4,6 +4,7 @@ import ControlTable from '../views/ControlTable.vue';
 import Blogs from '../views/Blogs.vue';
 import UserProfile from '../views/UserProfile.vue';
 import Tours from '../views/Tours.vue';
+import TourEditor from '../views/TourEditor.vue';
 
 const routes = [
     { path: '/', name: 'HomePage', component: HomePage },
@@ -11,6 +12,8 @@ const routes = [
     { path: '/control-table', name: 'ControlTable', component: ControlTable, meta: { requiresAdmin: true } },
     { path: '/profile/:username', name: 'UserProfile', component: UserProfile },
     { path: '/tours', name: 'Tours', component: Tours },
+    { path: '/create-tour', name: 'Create Tour', component: TourEditor, meta: { requiresGuide: true} },
+    { path: '/tours/:tourId/edit', name: 'Edit Tour', component: TourEditor, props: true, meta: { requiresGuide: true} },
 ];
 
 const router = createRouter({
