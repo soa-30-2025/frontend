@@ -19,6 +19,22 @@ export async function fetchTours(loading, tours) {
     }
 }
 
+export async function fetchAllTours(loading, tours) {
+    loading.value = true;
+    try {
+        const res = await fetch(`${API_URL}/tours`);
+        if (!res.ok) throw new Error("Failed to fetch tours");
+
+        const data = await res.json();
+        tours.value = data.tours || [];
+    } catch (err) {
+        console.error(err);
+        tours.value = [];
+    } finally {
+        loading.value = false;
+    }
+}
+
 function authHeadersJson() {
     const token = sessionStorage.getItem('jwtToken') || '';
     return {
@@ -48,11 +64,13 @@ async function handleResp(res) {
 
 
 export async function createTour(body) {
+    console.log(body)
     const res = await fetch(`${API_URL}/tour`, {
         method: 'POST',
         headers: authHeadersJson(),
         body: JSON.stringify(body),
     });
+    console.log(res)
     return handleResp(res);
 }
 
