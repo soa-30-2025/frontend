@@ -8,6 +8,7 @@ import AllTours from '../views/AllTours.vue';
 import ShowTour from '../views/ShowTour.vue';
 import TourEditor from '../views/TourEditor.vue';
 import PositionSimulator from '../views/PositionSimulator.vue';
+import CartView from '../views/CartView.vue';
 
 const routes = [
     { path: '/', name: 'HomePage', component: HomePage },
@@ -20,6 +21,7 @@ const routes = [
     { path: '/tour-details/:id', name: 'ShowTour', component: ShowTour },
     { path: '/create-tour', name: 'Create Tour', component: TourEditor, meta: { requiresGuide: true} },
     { path: '/tours/:tourId/edit', name: 'Edit Tour', component: TourEditor, props: true, meta: { requiresGuide: true} },
+    { path: '/cart', name: 'Cart', component: CartView, meta: { requiresAuthentication: true} },
 ];
 
 const router = createRouter({
@@ -28,7 +30,7 @@ const router = createRouter({
 });
 
 router.beforeEach((to, from, next) => {
-    const isLoggedIn = !!sessionStorage.getItem('email');
+    const isLoggedIn = !!sessionStorage.getItem('username');
     const role = sessionStorage.getItem('role');
 
     if (to.meta.requiresAuthentication) {
