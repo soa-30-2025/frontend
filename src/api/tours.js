@@ -64,13 +64,11 @@ async function handleResp(res) {
 
 
 export async function createTour(body) {
-    console.log(body)
     const res = await fetch(`${API_URL}/tour`, {
         method: 'POST',
         headers: authHeadersJson(),
         body: JSON.stringify(body),
     });
-    console.log(res)
     return handleResp(res);
 }
 
