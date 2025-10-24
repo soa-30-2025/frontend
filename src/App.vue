@@ -15,6 +15,15 @@
                     </svg>
                 </button>
 
+                <button v-if="logged" @click="cartButtonClick" class="mr-10">
+                    <svg class="w-[48px] h-[48px] text-gray-800" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                        width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                        <path fill-rule="evenodd"
+                            d="M4 4a1 1 0 0 1 1-1h1.5a1 1 0 0 1 .979.796L7.939 6H19a1 1 0 0 1 .979 1.204l-1.25 6a1 1 0 0 1-.979.796H9.605l.208 1H17a3 3 0 1 1-2.83 2h-2.34a3 3 0 1 1-4.009-1.76L5.686 5H5a1 1 0 0 1-1-1Z"
+                            clip-rule="evenodd" />
+                    </svg>
+                </button>
+
                 <button v-if="!logged" @click="showModal = true"
                     class="px-4 py-2 bg-black text-white rounded-lg shadow hover:brightness-90 transition">
                     Prijava
@@ -31,7 +40,7 @@
         </header>
 
         <main>
-            <router-view/>
+            <router-view />
         </main>
 
         <AuthModal v-if="showModal" :isVisible="showModal" @close="checkLoggedUser" />
@@ -74,13 +83,17 @@ const logout = async () => {
 };
 
 const profileButtonClick = () => {
-  if (role === 'admin') {
-    router.push('/control-table')
-  } else if (role === 'guide' || role === "tourist") {
-    router.push(`/profile/${username}`)
-  } else {
-    router.push('/')
-  }
+    if (role === 'admin') {
+        router.push('/control-table')
+    } else if (role === 'guide' || role === "tourist") {
+        router.push(`/profile/${username}`)
+    } else {
+        router.push('/')
+    }
+}
+
+const cartButtonClick = () => {
+    router.push('/cart')
 }
 </script>
 
