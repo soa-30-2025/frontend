@@ -7,6 +7,7 @@ import Tours from '../views/Tours.vue';
 import AllTours from '../views/AllTours.vue';
 import ShowTour from '../views/ShowTour.vue';
 import TourEditor from '../views/TourEditor.vue';
+import PositionSimulator from '../views/PositionSimulator.vue';
 import CartView from '../views/CartView.vue';
 
 const routes = [
@@ -15,6 +16,7 @@ const routes = [
     { path: '/control-table', name: 'ControlTable', component: ControlTable, meta: { requiresAdmin: true } },
     { path: '/profile/:username', name: 'UserProfile', component: UserProfile },
     { path: '/tours', name: 'Tours', component: Tours },
+    { path: '/position-simulator', name: 'PositionSimulator', component: PositionSimulator },
     { path: '/all-tours', name: 'AllTours', component: AllTours },
     { path: '/tour-details/:id', name: 'ShowTour', component: ShowTour },
     { path: '/create-tour', name: 'Create Tour', component: TourEditor, meta: { requiresGuide: true} },
