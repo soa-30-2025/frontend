@@ -62,6 +62,16 @@
                     </select>
                 </div>
 
+                <div>
+                    <label class="block text-xs text-gray-600">Price</label>
+                    <input v-model.number="form.price" type="number" min="0" step="0.01"
+                        class="w-full border px-2 py-1 rounded" />
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600">Departure Date</label>
+                    <input v-model="form.departureDate" type="date" class="w-full border px-2 py-1 rounded" />
+                </div>
+
                 <div class="md:col-span-2">
                     <label class="block text-xs text-gray-600">Description</label>
                     <textarea v-model="form.description" class="w-full border px-2 py-1 rounded" rows="4"></textarea>
@@ -217,10 +227,10 @@ const mapContainer = ref(null)
 let map = null, markersLayer = null, polyline = null
 
 const tour = ref({
-    id: null, author_id: null, name: '', description: '', difficulty: '', tags: [], price_num: 0, status: 'draft', travelTimes: {}
+    id: null, author_id: null, name: '', description: '', difficulty: '', tags: [], price: 0, status: 'draft', travelTimes: {}, departureDate: ''
 })
 const form = ref({
-    name: '', description: '', difficulty: '', tagsString: '', travel_times: { walking: null, bicycle: null, car: null }
+    name: '', description: '', difficulty: '', tagsString: '', travel_times: { walking: null, bicycle: null, car: null }, price: 0, departureDate: ''
 })
 
 const keypoints = ref([])
@@ -381,6 +391,8 @@ async function saveDraft() {
     if (form.value.travel_times.bicycle) body.travel_times.bicycle = Number(form.value.travel_times.bicycle)
     if (form.value.travel_times.car) body.travel_times.car = Number(form.value.travel_times.car)
 
+    body.price = Number(form.value.price) || 0
+    body.departureDate = new Date(form.value.departureDate).toISOString()
     body.status = 'draft'
 
     if (!tour.value.id) {
@@ -402,6 +414,8 @@ async function loadExistingTour(id) {
     form.value.difficulty = t.difficulty
     form.value.tagsString = (t.tags || []).join(', ')
     form.value.travel_times = t.travelTimes || {}
+    form.value.price = t.price || 0
+    form.value.departureDate = t.departureDate ? new Date(t.departureDate).toISOString().split('T')[0] : '';
     keypoints.value = (res.keypoints || []).map(k => ({ id: k.id, lat: k.lat, lon: k.lon, name: k.name, description: k.description, image_url: k.image_url, order: k.order }))
     renderMarkersAndLine()
     if (keypoints.value.length > 0) {
@@ -545,6 +559,10 @@ async function updateTourDetails() {
     if (form.value.travel_times.walking) tour.value.travelTimes.walking = Number(form.value.travel_times.walking)
     if (form.value.travel_times.bicycle) tour.value.travelTimes.bicycle = Number(form.value.travel_times.bicycle)
     if (form.value.travel_times.car) tour.value.travelTimes.car = Number(form.value.travel_times.car)
+
+    tour.value.price = Number(form.value.price) || 0
+    tour.value.departureDate = form.value.departureDate
+    tour.value.departureDate = new Date(form.value.departureDate).toISOString()
 
     try {
         await updateTour(tour.value.id, tour.value)
