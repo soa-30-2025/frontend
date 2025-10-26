@@ -5,7 +5,8 @@
             <div v-for="tour in tours" :key="tour.id"
                 class="border rounded-lg p-4 shadow hover:shadow-lg transition flex flex-col justify-between">
                 <div>
-                    <h2 @click="showTour(tour.id)" class="text-xl font-semibold mb-2 cursor-pointer">{{ tour.name }} - ${{ tour.price }}</h2>
+                    <h2 @click="showTour(tour.id)" class="text-xl font-semibold mb-2 cursor-pointer">{{ tour.name }} -
+                        ${{ tour.price }}</h2>
                     <p class="text-gray-600 mb-2">{{ tour.description }}</p>
                     <p class="text-sm text-gray-500 mb-1">Difficulty: {{ tour.difficulty }}</p>
                     <div class="flex flex-wrap gap-2 mb-4">
@@ -18,10 +19,16 @@
 
                 <div class="mt-4">
                     <button v-if="tour.isPurchased"
-                        class="w-full bg-green-500 text-white font-bold py-2 px-4 rounded-lg cursor-not-allowed opacity-75"
+                        class="w-full bg-green-500 text-white font-bold py-2 px-4 rounded-lg cursor-not-allowed opacity-75 mb-2"
                         disabled>
                         PURCHASED! 🎉
                     </button>
+                    <div v-if="tour.isPurchased">
+                        <button @click="startTour(tour.id)"
+                            class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition mb-2">
+                            Start Tour
+                        </button>
+                    </div>
 
                     <button v-else-if="cartStore.isItemInCart(tour.id)" @click="router.push({ path: '/cart' })"
                         class="w-full bg-yellow-500 text-black hover:bg-yellow-600 font-bold py-2 px-4 rounded-lg transition">
@@ -32,7 +39,7 @@
                         class="w-full bg-yellow-500 text-black font-bold py-2 px-4 rounded-lg transition">
                         Archived
                     </button>
-                    
+
                     <button v-else @click.stop="addToCart(tour)" :disabled="tour.isAdding"
                         class="w-full bg-indigo-600 text-white hover:bg-indigo-700 font-bold py-2 px-4 rounded-lg transition disabled:opacity-50">
                         {{ tour.isAdding ? 'Adding...' : 'Add to Cart' }}
@@ -92,4 +99,12 @@ const checkPurchaseStatuses = async () => {
     });
     await Promise.all(checkPromises);
 };
+
+const startTour = (tourId) => {
+    router.push({
+        name: 'PositionSimulator',
+        query: { tourId }
+    });
+};
+
 </script>

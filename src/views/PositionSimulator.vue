@@ -1,23 +1,19 @@
 <template>
     <div class="min-h-screen bg-gray-50 p-6">
         <div class="max-w-7xl mx-auto">
-            <!-- Header -->
             <div class="text-center mb-8">
                 <h1 class="text-3xl font-bold text-gray-900 mb-2">Position Simulator</h1>
                 <p class="text-gray-600 text-lg">Click on the map to set your current position</p>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Map Container -->
                 <div class="lg:col-span-2">
                     <div class="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
                         <div ref="map" class="w-full h-96 lg:h-[500px]"></div>
                     </div>
                 </div>
 
-                <!-- Controls Panel -->
                 <div class="space-y-6">
-                    <!-- Position Info -->
                     <div class="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
                         <h3 class="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
                             Current Position
@@ -53,22 +49,21 @@
                         </div>
                     </div>
 
-                    <!-- Actions -->
                     <div class="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
                         <div class="space-y-3">
-                            <button @click="getCurrentPosition" :disabled="loading"
-                                class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none hover:transform hover:-translate-y-0.5">
-                                {{ loading ? 'Loading...' : 'Get Current Position' }}
+                            <button @click="startTour" :disabled="loading"
+                                class="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none hover:transform hover:-translate-y-0.5">
+                                Start Tour
                             </button>
 
-                            <button @click="deletePosition" :disabled="!currentPosition || loading"
-                                class="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none hover:transform hover:-translate-y-0.5">
-                                Delete Position
+                            <button @click="finishTour"
+                                class="mt-4 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">
+                                END TOUR
                             </button>
+
                         </div>
                     </div>
 
-                    <!-- Status Messages -->
                     <div v-if="message" :class="[
                         'p-4 rounded-lg border font-medium',
                         messageType === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
@@ -87,9 +82,10 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { setPosition, getCurrentPosition, deletePosition } from '@/api/position'
+import { setPosition, getCurrentPosition } from '@/api/position'
+import { tourExecutionApi } from '@/api/tourExecution'
+import { useRoute } from 'vue-router'
 
-// Fix for default markers in Leaflet
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
     iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
@@ -108,34 +104,32 @@ export default {
         const message = ref('')
         const messageType = ref('')
 
-        // Default center (Belgrade)
+        const route = useRoute()
+        const tourId = route.query.tourId
+        const executionId = ref(null);
+
+        let intervalId = null;
+
         const defaultCenter = [44.8125, 20.4612]
         const defaultZoom = 13
 
-        // Initialize Leaflet map
         const initializeMap = () => {
             if (!map.value) return
 
-            // Create map instance
             leafletMap.value = L.map(map.value).setView(defaultCenter, defaultZoom)
 
-            // Add OpenStreetMap tiles
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(leafletMap.value)
 
-            // Handle map clicks
             leafletMap.value.on('click', (e) => {
                 const { lat, lng } = e.latlng
                 handleSetPosition(lat, lng)
                 updateMarker([lat, lng])
             })
-
-            // Load current position
             loadCurrentPosition()
         }
 
-        // Update marker on map
         const updateMarker = (latlng) => {
             if (marker.value) {
                 marker.value.setLatLng(latlng)
@@ -146,11 +140,9 @@ export default {
                     .openPopup()
             }
 
-            // Center map on marker
             leafletMap.value.setView(latlng, leafletMap.value.getZoom())
         }
 
-        // Remove marker from map
         const removeMarker = () => {
             if (marker.value) {
                 leafletMap.value.removeLayer(marker.value)
@@ -158,7 +150,6 @@ export default {
             }
         }
 
-        // Set position using service
         const handleSetPosition = async (latitude, longitude) => {
             loading.value = true
             clearMessage()
@@ -167,6 +158,27 @@ export default {
                 const data = await setPosition(latitude, longitude)
                 currentPosition.value = data.position
                 showMessage('Position set successfully!', 'success')
+
+                if (executionId.value) {
+                    console.log(`Updating tour execution ${executionId.value} with new position...`);
+                    const response = await fetch(
+                        `http://localhost:8000/api/tour-execution/${executionId.value}`,
+                        {
+                            method: 'PUT',
+                            headers: authHeadersJson(),
+                            body: JSON.stringify({
+                                lat: latitude,
+                                lng: longitude
+                            })
+                        }
+                    );
+
+                    if (!response.ok) {
+                        const err = await response.text();
+                    } else {
+                        const resData = await response.json();
+                    }
+                }
             } catch (error) {
                 console.error('Error setting position:', error)
                 showMessage('Failed to set position: ' + error.message, 'error')
@@ -175,17 +187,15 @@ export default {
             }
         }
 
-        // Get current position using service
         const handleGetCurrentPosition = async () => {
             loading.value = true
             clearMessage()
 
             try {
                 const data = await getCurrentPosition()
-                
+
                 if (data) {
                     currentPosition.value = data.position
-                    // Update marker on map
                     const latlng = [data.position.latitude, data.position.longitude]
                     updateMarker(latlng)
                     showMessage('Position loaded successfully!', 'success')
@@ -202,35 +212,14 @@ export default {
             }
         }
 
-        // Delete position using service
-        const handleDeletePosition = async () => {
-            loading.value = true
-            clearMessage()
-
-            try {
-                const data = await deletePosition()
-                currentPosition.value = null
-                removeMarker()
-                showMessage(data.message || 'Position deleted successfully!', 'success')
-            } catch (error) {
-                console.error('Error deleting position:', error)
-                showMessage('Failed to delete position: ' + error.message, 'error')
-            } finally {
-                loading.value = false
-            }
-        }
-
-        // Load current position on component mount
         const loadCurrentPosition = () => {
             handleGetCurrentPosition()
         }
 
-        // Helper functions
         const showMessage = (text, type) => {
             message.value = text
             messageType.value = type
 
-            // Auto-clear message after 5 seconds
             setTimeout(() => {
                 if (message.value === text) {
                     clearMessage()
@@ -272,14 +261,96 @@ export default {
             }
         };
 
+        function authHeadersJson() {
+            const token = sessionStorage.getItem('jwtToken') || '';
+            return {
+                'Content-Type': 'application/json',
+                Authorization: token ? `Bearer ${token}` : '',
+            };
+        }
+
+        const startTour = async () => {
+            if (!tourId) {
+                showMessage('Tour ID is missing!', 'error')
+                return
+            }
+
+            loading.value = true
+            clearMessage()
+
+            try {
+                const data = await tourExecutionApi.startTour(tourId);
+                showMessage('Tour started successfully!', 'success');
+                executionId.value = data.execution.id;
+                startProximityCheckLoop();
+            } catch (error) {
+                if (error.message.includes('tourist already has an active tour')) {
+                    alert('You already have an active tour in progress!');
+                } else {
+                    alert('Failed to start the tour. Please try again later.');
+                }
+                console.error('Error starting tour:', error)
+                showMessage('Failed to start tour')
+            } finally {
+                loading.value = false
+            }
+        }
+
+        const checkProximity = async () => {
+            if (!executionId.value) return;
+            try {
+                await tourExecutionApi.checkProximity(executionId.value);
+            } catch (error) {
+                console.error("Error checking proximity:", error);
+            }
+        };
+
+        const startProximityCheckLoop = () => {
+            if (intervalId) clearInterval(intervalId);
+            console.log("Starting proximity check loop...");
+            intervalId = setInterval(checkProximity, 10000);
+        };
+
+        const finishTour = async () => {
+            try {
+                const completionData = await tourExecutionApi.getCompletionStatus(executionId.value);
+
+                const allCompleted = completionData.allCompleted;
+                const completedCount = completionData.completedKeypoints;
+                const totalCount = completionData.totalKeypoints;
+
+                const newStatus = allCompleted ? "completed" : "abandoned";
+
+                await tourExecutionApi.updateTourExecutionStatus(executionId.value, newStatus);
+
+                if (allCompleted) {
+                    alert(`🎉 Congrats! You have completed all ${totalCount} key points!`);
+                } else {
+                    alert(`👋 Tour abandoned. Completed ${completedCount}/${totalCount} key points.`);
+                }
+
+                if (intervalId) {
+                    clearInterval(intervalId);
+                    intervalId = null;
+                }
+
+            } catch (error) {
+                console.error("Error in ending tour:", error);
+                alert("Error in ending tour: " + error.message);
+            }
+        };
+
         onMounted(() => {
             initializeMap()
         })
 
         onUnmounted(() => {
-            // Cleanup Leaflet map
             if (leafletMap.value) {
                 leafletMap.value.remove()
+            }
+            if (intervalId) {
+                clearInterval(intervalId);
+                console.log("Stopped proximity check loop");
             }
         })
 
@@ -289,8 +360,9 @@ export default {
             loading,
             message,
             messageType,
+            startTour,
+            finishTour,
             getCurrentPosition: handleGetCurrentPosition,
-            deletePosition: handleDeletePosition,
             formatTimestamp
         }
     }
