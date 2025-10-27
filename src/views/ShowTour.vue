@@ -75,7 +75,7 @@
                 </div>
                 <div>
                     <p><strong>Price:</strong> {{ tour.price }} €</p>
-                    <p><strong>Length:</strong> {{ tour.length_km }} km</p>
+                    <p><strong>Length:</strong> {{ tour.lengthKm }} km</p>
                 </div>
             </div>
             <div class="mb-6" v-if="tour.tags && tour.tags.length">
@@ -306,6 +306,7 @@ onMounted(async () => {
         userRole.value = sessionStorage.getItem('role') || '';
         const response = await getTour(tourId);
         tour.value = response.tour;
+        console.log(tour.value)
         keypoints.value = response.keypoints || [];
 
         hasPurchased.value = await fetchHasPurchased(tourId);
