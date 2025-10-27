@@ -25,7 +25,6 @@ export const tourExecutionApi = {
         return await response.json();
     },
 
-    // Update tour execution position
     async updateTourExecution(executionId, lat, lng) {
         const response = await fetch(`${BASE_URL}/tour-execution/${executionId}`, {
             method: 'PUT',
@@ -41,7 +40,6 @@ export const tourExecutionApi = {
         return await response.json();
     },
 
-    // Update tour execution status
     async updateTourExecutionStatus(executionId, status) {
         const response = await fetch(`${BASE_URL}/tour-execution/${executionId}`, {
             method: 'PUT',
@@ -57,7 +55,6 @@ export const tourExecutionApi = {
         return await response.json();
     },
 
-    // Check proximity to keypoints
     async checkProximity(executionId) {
         const response = await fetch(
             `${BASE_URL}/tour-execution/${executionId}/check-proximity`,
@@ -85,6 +82,25 @@ export const tourExecutionApi = {
 
         if (!response.ok) {
             throw new Error("Failed to get completion status");
+        }
+
+        return await response.json();
+    },
+
+    async getTourExecutionByUserAndTour(touristId, tourId) {
+        const response = await fetch(
+            `${BASE_URL}/tour-execution/tourist/${touristId}/tour/${tourId}`,
+            {
+                method: 'GET',
+                headers: authHeadersJson(),
+            }
+        );
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                return null;
+            }
+            throw new Error("Failed to get tour execution");
         }
 
         return await response.json();

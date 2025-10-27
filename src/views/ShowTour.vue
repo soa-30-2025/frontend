@@ -13,7 +13,7 @@
                         class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
                         {{ showReviews ? 'Hide Reviews' : 'Show Reviews' }}
                     </button>
-                    <button v-if="userRole === 'tourist'" @click="openReviewModal"
+                    <button v-if="userRole === 'tourist' && showAddReviewButton && !checkingReviewEligibility" @click="openReviewModal"
                         class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">
                         Add Review
                     </button>
@@ -87,7 +87,8 @@
                     </span>
                 </div>
             </div>
-            <div v-if="keypoints.length > 0" class="mb-8">
+            <!-- 🔸 Ako je tura kupljena – prikaz svih ključnih tačaka -->
+            <div v-if="hasPurchased && keypoints.length > 0" class="mb-8">
                 <h3 class="text-xl font-semibold mb-4">Keypoints</h3>
                 <div class="space-y-4">
                     <div v-for="(kp, index) in keypoints" :key="kp.id"
@@ -102,7 +103,22 @@
                     </div>
                 </div>
             </div>
-            <div v-if="keypoints.length > 0">
+            <div v-else-if="!hasPurchased && keypoints.length > 0" class="mb-8">
+                <h3 class="text-xl font-semibold mb-4">Starting Point</h3>
+                <div class="border rounded-lg p-4 shadow hover:shadow-lg transition">
+                    <h4 class="text-lg font-semibold mb-2">1. {{ keypoints[0].name }}</h4>
+                    <p class="text-gray-700 mb-2">{{ keypoints[0].description }}</p>
+                    <p class="text-sm text-gray-500 mb-2">
+                        <strong>Coordinates:</strong> ({{ keypoints[0].lat }}, {{ keypoints[0].lon }})
+                    </p>
+                    <img v-if="keypoints[0].image_path" :src="keypoints[0].image_path" alt="Keypoint image"
+                        class="rounded-lg w-full h-64 object-cover" />
+                </div>
+                <p class="mt-4 text-gray-500 italic text-center">
+                    Purchase this tour to unlock all keypoints and the full route map.
+                </p>
+            </div>
+            <div v-if="hasPurchased && keypoints.length > 0">
                 <h3 class="text-xl font-semibold mb-4">Tour Map</h3>
                 <div id="map" class="h-96 rounded-lg shadow"></div>
             </div>
@@ -125,12 +141,6 @@
                         <label class="block mb-1 font-semibold">Comment</label>
                         <textarea v-model="review.comment" required class="border rounded w-full p-2 h-24"></textarea>
                     </div>
-
-                    <div>
-                        <label class="block mb-1 font-semibold">Visit Date</label>
-                        <input type="date" v-model="review.visit_date" required class="border rounded w-full p-2" />
-                    </div>
-
                     <div>
                         <label class="block mb-1 font-semibold">Upload Images</label>
                         <input type="file" multiple @change="handleImageUpload" />
@@ -161,6 +171,8 @@ import { useRoute } from "vue-router";
 import { getTour } from "@/api/tours";
 import { getById } from '@/api/stakeholder';
 import { reviewsApi } from '@/api/reviews';
+import { fetchHasPurchased } from '@/api/purchase';
+import { tourExecutionApi } from '@/api/tourExecution';
 import L from "leaflet";
 
 const reviews = ref([]);
@@ -177,15 +189,21 @@ const showModal = ref(false);
 let map = null;
 const userRole = ref('');
 
-const userNames = ref({}); 
-const loadingUsers = ref({}); 
+const userNames = ref({});
+const loadingUsers = ref({});
 
 const review = ref({
     rating: "",
     comment: "",
-    visit_date: "",
     images: [],
 });
+
+const hasPurchased = ref(false);
+
+const showAddReviewButton = ref(false);
+const checkingReviewEligibility = ref(false);
+
+const tourExecutionData = ref(null);
 
 const fetchUserName = async (touristId) => {
     if (!touristId) return;
@@ -217,7 +235,7 @@ const fetchReviews = async () => {
     reviewsLoading.value = true;
     try {
         const data = await reviewsApi.getReviewsByTour(tour.value.id);
-        
+
         console.log("Raw reviews data:", data);
         console.log("First review:", data.reviews?.[0]);
 
@@ -289,6 +307,9 @@ onMounted(async () => {
         const response = await getTour(tourId);
         tour.value = response.tour;
         keypoints.value = response.keypoints || [];
+
+        hasPurchased.value = await fetchHasPurchased(tourId);
+        await checkReviewEligibility();
     } catch (err) {
         console.error("Error fetching tour:", err);
     } finally {
@@ -336,7 +357,18 @@ function handleImageUpload(e) {
 
 const submitReview = async () => {
     try {
-        const visitDate = new Date(review.value.visit_date).toISOString();
+        let visitDate;
+
+        if (tourExecutionData.value?.execution?.endTime) {
+            const endTime = tourExecutionData.value.execution.endTime;
+            if (endTime.seconds) {
+                visitDate = new Date(endTime.seconds * 1000).toISOString();
+            } else if (typeof endTime === 'string') {
+                visitDate = new Date(endTime).toISOString();
+            }
+        }
+
+        console.log('Using visit date:', visitDate);
 
         const imagePromises = review.value.images.map(async (file) => {
             if (file.data) return file;
@@ -366,7 +398,7 @@ const submitReview = async () => {
 
         alert("Review created successfully!");
         showModal.value = false;
-        review.value = { rating: "", comment: "", visit_date: "", images: [] };
+        review.value = { rating: "", comment: "", images: [] };
     } catch (error) {
         console.error("Error creating review:", error);
         alert("Error creating review: " + error.message);
@@ -378,6 +410,42 @@ const getFullImageUrl = (imagePath) => {
     if (imagePath.startsWith('http')) return imagePath;
 
     return `http://localhost:8000/uploads/${imagePath}`;
+};
+
+const checkReviewEligibility = async () => {
+    if (userRole.value !== 'tourist' || !tour.value?.id) {
+        showAddReviewButton.value = false;
+        return;
+    }
+
+    checkingReviewEligibility.value = true;
+    
+    try {
+        const touristId = sessionStorage.getItem('id'); 
+        
+        const executionResponse = await tourExecutionApi.getTourExecutionByUserAndTour(touristId, tour.value.id);
+        tourExecutionData.value = executionResponse;
+        const hasBeenOnTour = executionResponse !== null && 
+                              (executionResponse.execution?.status === 'completed' || 
+                               executionResponse.execution?.status === 'abandoned');
+
+        const reviewExistsResponse = await reviewsApi.checkReviewExists(tour.value.id, touristId);
+        const hasNotReviewed = !reviewExistsResponse.exists;
+
+        showAddReviewButton.value = hasBeenOnTour && hasNotReviewed;
+        
+        console.log('Review eligibility check:', {
+            hasBeenOnTour,
+            hasNotReviewed,
+            showAddReview: showAddReviewButton.value
+        });
+
+    } catch (error) {
+        console.error("Error checking review eligibility:", error);
+        showAddReviewButton.value = false;
+    } finally {
+        checkingReviewEligibility.value = false;
+    }
 };
 
 </script>
