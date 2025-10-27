@@ -397,6 +397,9 @@ async function saveDraft() {
 
     if (!tour.value.id) {
         const res = await createTour(body)
+        if(res.ok){
+            alert("Tour created successfully")
+        }
         tour.value = res.tour ?? res
         form.value.tagsString = (tour.value.tags || []).join(', ')
         form.value.name = tour.value.name

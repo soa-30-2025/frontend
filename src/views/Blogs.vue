@@ -14,7 +14,7 @@
       <div class="bg-white rounded-lg p-6 w-full max-w-lg relative">
         <h2 class="text-xl font-semibold mb-4">New blog</h2>
         <label class="block mb-2">
-          Naslov
+          Title
           <input
             v-model="newBlog.title"
             type="text"
