@@ -1,32 +1,80 @@
 const API_URL = "http://localhost:8000/api";
 import { getById } from "@/api/stakeholder";
+import { isFollowing } from '@/api/followings';
 
 export async function fetchBlogs() {
   const token = sessionStorage.getItem("jwtToken");
+  const currentUserId = sessionStorage.getItem("id"); 
 
-  const res = await fetch("http://localhost:8000/api/blogs", {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  try {
+    const res = await fetch("http://localhost:8000/api/blogs", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    
+    if (!res.ok) {
+      throw new Error(`Neuspešno učitavanje blogova: ${res.status} ${res.statusText}`);
+    }
 
-  if (!res.ok) throw new Error("Neuspešno učitavanje blogova");
+    const data = await res.json();
 
-  const data = await res.json();
+    if (!data || !Array.isArray(data.blogs)) {
+      console.warn("Nema dostupnih blogova ili nevalidan format odgovora");
+      return [];
+    }
 
-  if (!data || !Array.isArray(data.blogs) || data.blogs.length === 0) {
-    console.warn("Nema dostupnih blogova");
-    return [];
+    if (data.blogs.length === 0) {
+      console.warn("Nema dostupnih blogova");
+      return [];
+    }
+
+    const filteredBlogs = await filterBlogsByFollowing(data.blogs, currentUserId);
+
+    return filteredBlogs.map((b) => ({
+      id: b.id,
+      title: b.title,
+      description: b.description,
+      created_at: b.created_at,
+      author_id: b.authorId
+    }));
+
+  } catch (error) {
+    console.error("Greška u fetchBlogs:", error);
+    throw error;
   }
-
-  return data.blogs.map((b) => ({
-    id: b.id,
-    title: b.title,
-    description: b.description,
-    created_at: b.created_at,
-  }));
 }
 
+async function filterBlogsByFollowing(blogs, currentUserId) {
+  if (!currentUserId) {
+    console.warn("Nema ID trenutnog korisnika");
+    return blogs;
+  }
+
+  const filteredBlogs = [];
+  
+  for (const blog of blogs) {
+    try {
+      if (blog.authorId === currentUserId) {
+        filteredBlogs.push(blog);
+        continue;
+      }
+      
+      const followingResponse = await isFollowing(currentUserId, blog.authorId);
+      const isFollowingAuthor = followingResponse.following;
+      
+      console.log(`Korisnik ${currentUserId} prati autora ${blog.authorId}:`, isFollowingAuthor);
+      
+      if (isFollowingAuthor) {
+        filteredBlogs.push(blog);
+      }
+    } catch (error) {
+      console.error(`Greška pri proveri praćenja za autora ${blog.authorId}:`, error);
+    }
+  }
+  
+  return filteredBlogs;
+}
 export async function createBlog(newBlog) {
   const token = sessionStorage.getItem("jwtToken");
 

@@ -45,5 +45,21 @@ export const reviewsApi = {
             console.error("Error creating review:", error);
             throw error;
         }
+    },
+
+    async checkReviewExists(tourId, touristId) {
+        const response = await fetch(
+            `${BASE_URL}/reviews/${tourId}/${touristId}/exists`,
+            {
+                method: 'GET',
+                headers: authHeadersJson(),
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error("Failed to check review existence");
+        }
+
+        return await response.json();
     }
 };
